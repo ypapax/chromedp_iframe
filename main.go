@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"github.com/chromedp/chromedp"
+	"github.com/pkg/errors"
 	"log"
+	"os"
 	"sync"
-	"time"
 )
 
 var (
@@ -15,41 +16,39 @@ var (
 
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Llongfile)
 	log.Println("app is running")
-	cycle := 0
-	for {
-		cycle++
-		log.Printf("starting cycle %+v\n", cycle)
-		func(){
-			commonContextMtx.Lock()
-			defer commonContextMtx.Unlock()
-			log.SetFlags(log.LstdFlags | log.Llongfile)
-			if commonContext == nil {
-				ctx0, _ := chromedp.NewContext(
-					context.Background(),
-					chromedp.WithLogf(log.Printf),
-				)
-				commonContext = &ctx0
-			}
+	if err := func() error {
+		commonContextMtx.Lock()
+		defer commonContextMtx.Unlock()
 
-
-			u := `https://github.com/`
-			selector := `title`
-			log.Println("requesting", u)
-			log.Println("selector", selector)
-			var result string
-			err := chromedp.Run(*commonContext,
-				chromedp.Navigate(u),
-				chromedp.WaitReady(selector),
-				chromedp.OuterHTML(selector, &result),
+		if commonContext == nil {
+			ctx0, _ := chromedp.NewContext(
+				context.Background(),
+				chromedp.WithLogf(log.Printf),
 			)
-			if err != nil {
-				log.Printf("error %+v \n", err)
-			}
-			log.Printf("result:\n%s", result)
-		}()
-		sl := time.Second
-		log.Printf("sleeping for %s\n", sl)
-		time.Sleep(sl)
+			commonContext = &ctx0
+		}
+		const urlEnvKey = "URL"
+		u := os.Getenv(urlEnvKey)
+		if len(u) == 0 {
+			return errors.Errorf("missing '%+v' env var", urlEnvKey)
+		}
+		selector := `title`
+		log.Println("requesting", u)
+		log.Println("selector", selector)
+		var result string
+		err := chromedp.Run(*commonContext,
+			chromedp.Navigate(u),
+			chromedp.WaitReady(selector),
+			chromedp.OuterHTML(selector, &result),
+		)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		log.Printf("result:\n%s", result)
+		return nil
+	}(); err != nil {
+		log.Printf("error %+v \n", err)
 	}
 }
