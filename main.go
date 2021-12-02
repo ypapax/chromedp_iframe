@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
 	"github.com/pkg/errors"
 	"log"
@@ -47,6 +48,25 @@ func main() {
 			return errors.WithStack(err)
 		}
 		log.Printf("result:\n%s", result)
+		var iframes, forms []*cdp.Node
+		if errChrome := chromedp.Run(*commonContext, chromedp.Nodes(`iframe`, &iframes, chromedp.ByQuery)); errChrome != nil {
+			log.Printf("%+v", errChrome)
+		}
+		log.Println("len(iframes)", len(iframes))
+		if len(iframes) == 0 {
+			log.Println("no iframes")
+			return nil
+		}
+		iframe := iframes[0]
+		if errR := chromedp.Run(*commonContext, chromedp.Nodes(`form`, &forms, chromedp.ByQuery, chromedp.FromNode(iframe))); errR != nil {
+			return errors.WithStack(errR)
+		}
+		log.Println("len(forms)", len(forms))
+		if len(forms) == 0 {
+			return nil
+		}
+		log.Println("form attributes: ", forms[0].Attributes)
+
 		return nil
 	}(); err != nil {
 		log.Printf("error %+v \n", err)
